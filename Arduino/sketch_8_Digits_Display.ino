@@ -5,41 +5,33 @@
  3 -> LatchPin
  4 -> GND
  5 -> VCC
-
 */
 
-int dataPin = 2;
-int latchPin = 3;
-int clockPin = 4;
+int dataPin = 2; // Amarillo
+int latchPin = 3; // Verde
+int clockPin = 4;// Rojo
 
-void displayDigit(byte character, byte pos){
+byte trama[12];
 
+void displayDigit(byte character, int posInt){
+
+      byte pos = 0;
+      
       //Activar entrada de datos
       digitalWrite(latchPin, LOW);
       
       shiftOut(dataPin, clockPin, MSBFIRST, character);
+      bitWrite(pos, posInt, 1);
       shiftOut(dataPin, clockPin, MSBFIRST, pos);
 
-      //Aplicar
+      //Cerrar entrada de datos
       digitalWrite(latchPin, HIGH);
 }
 
 void setup() {
-/*
-  0b11000000;  // caracter[ 0 ]
-  0b11111001;  // caracter[ 1 ]
-  0b10100100;  // caracter[ 2 ]
-  0b10110000;  // caracter[ 3 ]
-  0b10011001;  // caracter[ 4 ]
-  0b10010010;  // caracter[ 5 ]
-  0b10000010;  // caracter[ 6 ]
-  0b11111000;  // caracter[ 7 ]
-  0b10000000;  // caracter[ 8 ]
-  0b10011000;  // caracter[ 9 ]
-  0b10111111; // caracter[ - ]
-  0b10001000; // caracter[ R ]
-*/
 
+    Serial.begin(57600);
+    
     pinMode(latchPin, OUTPUT);
     pinMode(clockPin, OUTPUT);
     pinMode(dataPin, OUTPUT);
@@ -47,9 +39,33 @@ void setup() {
 
 void loop() {
 
-    //Escribimos un gion [ - ] en la posicion 1 -> 0b45670123
-    displayDigit(0b10111111,0b00000010);        
-    //Escribimos una gion [ R ] en la posicion 3 -> 0b45670123
-    displayDigit(0b10001000, 0b00001000);
-}
+    if (Serial.available() > 0) {
 
+      if(Serial.available() > 12) {
+
+        //Clean array
+        //memset(trama, 0, sizeof(trama));
+        
+        trama[0] = Serial.read();
+        // Check header
+        if (trama[0]==0xFF){
+
+          // Fill array
+          for (int i = 1; i < 12; i++){
+            
+            trama[i] = Serial.read();
+          }
+        }
+      }
+    }
+    //Posiciones 0b45670123      
+    displayDigit(trama[1], 3);
+    displayDigit(trama[2], 2);
+    displayDigit(trama[3], 1);
+    displayDigit(trama[4], 0);
+    
+    displayDigit(trama[5], 7);
+    displayDigit(trama[6], 6);
+    displayDigit(trama[7], 5);
+    displayDigit(trama[8], 4);
+}
