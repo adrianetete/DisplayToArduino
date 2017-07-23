@@ -34,14 +34,19 @@ namespace DIY_SIMRACING_12 {
 		}
 	private: 
 		System::Windows::Forms::Timer^  timer1;
+
+		SerialPort* arduino;
 		String ^port;
 		array<String ^> ^ portList;
+		int velocidad = 1;
+		int uds, dec, cent, mil, dmil, cmil;
+
 	private: System::Windows::Forms::MenuStrip^  menuStrip1;
 	private: System::Windows::Forms::ToolStripMenuItem^  archivoToolStripMenuItem;
 	private: System::Windows::Forms::ToolStripMenuItem^  ayudaToolStripMenuItem;
 	private: System::Windows::Forms::ToolStripMenuItem^  salirToolStripMenuItem;
 	private: System::Windows::Forms::ToolStripMenuItem^  acercaDeToolStripMenuItem;
-			 SerialPort* arduino;
+			 
 
 		void getPorts()
 		{
@@ -83,15 +88,78 @@ namespace DIY_SIMRACING_12 {
 			arduino = new SerialPort(port_name);
 
 		}
+
+		byte convertIntToDigit(int num) {
+
+			switch (num)
+			{
+			case 0: return 0xC0; break;
+			case 1: return 0xF9; break;
+			case 2: return 0xA4; break;
+			case 3: return 0xB0; break;
+			case 4: return 0x99; break;
+			case 5: return 0x92; break;
+			case 6: return 0x82; break;
+			case 7: return 0xF8; break;
+			case 8: return 0x80; break;
+			case 9: return 0x90; break;
+			default: return 0xFF; break;
+			}
+		}
+
 		void sendDataArduino() {
 
-			unsigned char trama[] = {0x11, 0xAC};
-			arduino->writeSerialPort(trama, 2);
+			/*
+			0b11000000;  0xC0;  // caracter[ 0 ]
+			0b11111001;  0xF9;  // caracter[ 1 ]
+			0b10100100;  0xA4;  // caracter[ 2 ]
+			0b10110000;  0xB0;  // caracter[ 3 ]
+			0b10011001;  0x99;  // caracter[ 4 ]
+			0b10010010;  0x92;  // caracter[ 5 ]
+			0b10000010;  0x82;  // caracter[ 6 ]
+			0b11111000;  0xF8;  // caracter[ 7 ]
+			0b10000000;  0x80;  // caracter[ 8 ]
+			0b10010000;  0x90;  // caracter[ 9 ]
+			0b10111111;  0xBF;  // caracter[ - ]
+			0b10001000;  0x88;  // caracter[ R ]
+			*/
 
-			for (size_t i = 0; i < 5; i++)
-			{
-				Console::WriteLine("sendDataArduino" + i);
+			uds = velocidad % 10;
+			dec = int(velocidad / 10) % 10;
+			cent = int(velocidad / 100) % 10;
+			mil =  int(velocidad / 1000) % 10;
+			dmil = int(velocidad / 10000) % 10;
+			cmil = int(velocidad / 100000) % 10;
+
+			unsigned char trama[] = {
+
+				0xFF,
+				convertIntToDigit(uds),
+				convertIntToDigit(dec),
+				0xBF,
+				convertIntToDigit(cent),
+				convertIntToDigit(mil),
+				0xBF,
+				convertIntToDigit(dmil),
+				convertIntToDigit(cmil),
+				0xFF,
+				0xFF,
+				0xFF
+			};
+
+			arduino->writeSerialPort(trama, 12);
+
+			if (dec == 6) {
+				velocidad = velocidad + 40;
+
+				if (mil == 6) {
+					velocidad = velocidad + 4000;
+				}
 			}
+			else {
+				velocidad++;
+			}
+
 		}
 		bool comparaArrayPuertos(array<String ^> ^ uno, array<String ^> ^ dos) {
 
@@ -148,13 +216,11 @@ namespace DIY_SIMRACING_12 {
 		/// Variable del diseñador necesaria.
 		/// </summary>
 
-	private: System::Windows::Forms::Label^  label1;
-	private: System::Windows::Forms::GroupBox^  groupBox1;
-
-
-	private: System::Windows::Forms::Label^  label5;
-	private: System::Windows::Forms::GroupBox^  groupBox2;
-	private: System::Windows::Forms::ComboBox^  comboBox1;
+		System::Windows::Forms::Label^  label1;
+		System::Windows::Forms::GroupBox^  groupBox1;
+		System::Windows::Forms::Label^  label5;
+		System::Windows::Forms::GroupBox^  groupBox2;
+		System::Windows::Forms::ComboBox^  comboBox1;
 
 
 
@@ -176,8 +242,8 @@ namespace DIY_SIMRACING_12 {
 			this->timer1 = (gcnew System::Windows::Forms::Timer(this->components));
 			this->menuStrip1 = (gcnew System::Windows::Forms::MenuStrip());
 			this->archivoToolStripMenuItem = (gcnew System::Windows::Forms::ToolStripMenuItem());
-			this->ayudaToolStripMenuItem = (gcnew System::Windows::Forms::ToolStripMenuItem());
 			this->salirToolStripMenuItem = (gcnew System::Windows::Forms::ToolStripMenuItem());
+			this->ayudaToolStripMenuItem = (gcnew System::Windows::Forms::ToolStripMenuItem());
 			this->acercaDeToolStripMenuItem = (gcnew System::Windows::Forms::ToolStripMenuItem());
 			this->groupBox1->SuspendLayout();
 			this->groupBox2->SuspendLayout();
@@ -236,7 +302,7 @@ namespace DIY_SIMRACING_12 {
 			// 
 			// timer1
 			// 
-			this->timer1->Interval = 500;
+			this->timer1->Interval = 10;
 			this->timer1->Tick += gcnew System::EventHandler(this, &MyForm::timer1_Tick);
 			// 
 			// menuStrip1
@@ -258,6 +324,13 @@ namespace DIY_SIMRACING_12 {
 			this->archivoToolStripMenuItem->Size = System::Drawing::Size(60, 20);
 			this->archivoToolStripMenuItem->Text = L"Archivo";
 			// 
+			// salirToolStripMenuItem
+			// 
+			this->salirToolStripMenuItem->Name = L"salirToolStripMenuItem";
+			this->salirToolStripMenuItem->Size = System::Drawing::Size(96, 22);
+			this->salirToolStripMenuItem->Text = L"Salir";
+			this->salirToolStripMenuItem->Click += gcnew System::EventHandler(this, &MyForm::salirToolStripMenuItem_Click);
+			// 
 			// ayudaToolStripMenuItem
 			// 
 			this->ayudaToolStripMenuItem->DropDownItems->AddRange(gcnew cli::array< System::Windows::Forms::ToolStripItem^  >(1) { this->acercaDeToolStripMenuItem });
@@ -265,17 +338,10 @@ namespace DIY_SIMRACING_12 {
 			this->ayudaToolStripMenuItem->Size = System::Drawing::Size(53, 20);
 			this->ayudaToolStripMenuItem->Text = L"Ayuda";
 			// 
-			// salirToolStripMenuItem
-			// 
-			this->salirToolStripMenuItem->Name = L"salirToolStripMenuItem";
-			this->salirToolStripMenuItem->Size = System::Drawing::Size(152, 22);
-			this->salirToolStripMenuItem->Text = L"Salir";
-			this->salirToolStripMenuItem->Click += gcnew System::EventHandler(this, &MyForm::salirToolStripMenuItem_Click);
-			// 
 			// acercaDeToolStripMenuItem
 			// 
 			this->acercaDeToolStripMenuItem->Name = L"acercaDeToolStripMenuItem";
-			this->acercaDeToolStripMenuItem->Size = System::Drawing::Size(152, 22);
+			this->acercaDeToolStripMenuItem->Size = System::Drawing::Size(126, 22);
 			this->acercaDeToolStripMenuItem->Text = L"Acerca de";
 			// 
 			// MyForm
@@ -323,7 +389,7 @@ namespace DIY_SIMRACING_12 {
 			if (arduino != nullptr && arduino->isConnected()) {
 				
 				this->setLabelConnect(true);
-				//sendDataArduino();				
+				sendDataArduino();				
 				Console::WriteLine("Connected: " + this->port);
 			}
 			else {

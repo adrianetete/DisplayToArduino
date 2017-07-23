@@ -4,11 +4,11 @@ using namespace DIY_SIMRACING_12;
 
 int main()
 {
-
+	
 	MyForm^ interfaz = gcnew MyForm();
 
 	// Create the main window and run it
 	Application::Run(interfaz);
-
+	
 	return 0;
 }
