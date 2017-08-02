@@ -112,6 +112,7 @@ void loop() {
   //Activar entrada de datos
   digitalWrite(latchPinLED, 0);
 
+  shiftOutLEDS(dataPinLED, clockPinLED, trama[11]);
   shiftOutLEDS(dataPinLED, clockPinLED, trama[10]);
   shiftOutLEDS(dataPinLED, clockPinLED, trama[9]);
 
