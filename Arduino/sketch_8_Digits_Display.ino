@@ -11,55 +11,82 @@ int dataPin = 2; // Amarillo
 int latchPin = 3; // Verde
 int clockPin = 4;// Rojo
 
-int dataPinLED = 8;
-int latchPinLED = 9;
-int clockPinLED = 10;
+int dataPinLED = 8; // Azul
+int latchPinLED = 9; // Verde
+int clockPinLED = 10; //Amarillo
 
 byte trama[12];
 
-// My shitfOut
-void shiftOutLEDS(int myDataPin, int myClockPin, byte myDataOut) {
+// My shitfOut 8x3 bits
+void shiftOutLEDS(int myDataPin, int myClockPin, byte myDataOut1, byte myDataOut2, byte myDataOut3) {
 
   //Setup inicial
   int i = 0;
   int pinState;
-  pinMode(myClockPin, OUTPUT);
-  pinMode(myDataPin, OUTPUT);
 
-  digitalWrite(myDataPin, 0);
-  digitalWrite(myClockPin, 0);
+  //Enable data input
+  digitalWrite(latchPinLED, 0);
 
+  //Shift first byte for gear
   for (i = 0; i <= 7; i++)  {
     digitalWrite(myClockPin, 0);
 
-    if ( myDataOut & (1 << i) ) {
+    if ( myDataOut1 & (1 << i) ) {
       pinState = 1;
     }
     else {
       pinState = 0;
     }
-
     digitalWrite(myDataPin, pinState);
     digitalWrite(myClockPin, 1);
-    digitalWrite(myDataPin, 0);
   }
 
-  //Fin shifther
+  //Shift second byte for higher LEDs
+  for (i = 0; i <= 7; i++)  {
+    digitalWrite(myClockPin, 0);
+
+    if ( myDataOut2 & (1 << i) ) {
+      pinState = 1;
+    }
+    else {
+      pinState = 0;
+    }
+    digitalWrite(myDataPin, pinState);
+    digitalWrite(myClockPin, 1);
+  }
+
+  //Shift third byte for lower LEDs
+  for (i = 0; i <= 7; i++)  {
+    digitalWrite(myClockPin, 0);
+
+    if ( myDataOut3 & (1 << i) ) {
+      pinState = 1;
+    }
+    else {
+      pinState = 0;
+    }
+    digitalWrite(myDataPin, pinState);
+    digitalWrite(myClockPin, 1);
+  }
+
+  //End shifther
+  digitalWrite(myDataPin, 0);
   digitalWrite(myClockPin, 0);
+  digitalWrite(latchPinLED, 1); //Disable data input
 }
 
 void displayDigit(byte character, int posInt) {
 
   byte pos = 0;
 
-  //Activar entrada de datos
+  //Enable data input
   digitalWrite(latchPin, LOW);
 
   shiftOut(dataPin, clockPin, MSBFIRST, character);
   bitWrite(pos, posInt, 1);
   shiftOut(dataPin, clockPin, MSBFIRST, pos);
 
-  //Cerrar entrada de datos
+  //Disable data input
   digitalWrite(latchPin, HIGH);
 }
 
@@ -88,7 +115,7 @@ void loop() {
 
       trama[0] = Serial.read();
       // Check header
-      if (trama[0] == 0xFF) {
+      if (trama[0] == 0xCA) {
 
         // Fill array
         for (int i = 1; i < 12; i++) {
@@ -108,15 +135,5 @@ void loop() {
   displayDigit(trama[6], 6);
   displayDigit(trama[7], 5);
   displayDigit(trama[8], 4);
-
-  //Activar entrada de datos
-  digitalWrite(latchPinLED, 0);
-
-  shiftOutLEDS(dataPinLED, clockPinLED, trama[11]);
-  shiftOutLEDS(dataPinLED, clockPinLED, trama[10]);
-  shiftOutLEDS(dataPinLED, clockPinLED, trama[9]);
-
-  //Desactivar entrada de datos
-  digitalWrite(latchPinLED, 1);
-
+  shiftOutLEDS(dataPinLED, clockPinLED, trama[11], trama[10], trama[9]);
 }
