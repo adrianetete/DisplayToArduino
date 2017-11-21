@@ -395,12 +395,12 @@ void run()
 
 			if (strcmp(tstr, "Mclaren MP4-30") == 0) {
 
-				// Si el coche es el F1 cambiamos la forma de mover los LED y añadimos el DRS
+				// Si el coche es el F1 cambiamos la forma de mover los LED y aÃ±adimos el DRS
 				/**
 				*  McLaren MP4-30
 				*
 				*  - DRS Status can now be seen in telemetry. The variable has four possible values:
-				*  - - 0 = Inactive (None LED)
+				*  - - 0 = Inactive (No LED)
 				*  - - 1 = Available in Next Zone (First LED)
 				*  - - 2 = Available and in a DRS Zone (Second LED)
 				*  - - 3 = Active (Third and four LED)
