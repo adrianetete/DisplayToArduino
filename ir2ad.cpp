@@ -74,6 +74,7 @@ int driverCarIdx = 0;
 float pitFuel = 0;
 float  fuelLevel = 0;
 
+// Display int to the 8 bits-display
 byte convertIntToDigit(int num) {
 
 	switch (num)
@@ -93,6 +94,7 @@ byte convertIntToDigit(int num) {
 	}
 }
 
+// Display int to the 8 bits-display (Zero is blank space)
 byte convertIntToDigit2(int num) {
 
 	switch (num)
@@ -329,10 +331,10 @@ void monitorConnectionStatus()
 void run()
 {
 	// wait up to 16 ms for start of session or new data
-	if(irsdkClient::instance().waitForData(16))
+	if (irsdkClient::instance().waitForData(16))
 	{
 		// and grab the data
-		if(g_playerInCar.getBool())
+		if (g_playerInCar.getBool())
 		{
 			/*
 			****** Caracteres Display *******
@@ -354,7 +356,7 @@ void run()
 			lastTime = g_LapLastTime.getFloat() * 1000;
 			gear = g_carGear.getInt();
 			rpmPercent = g_carShiftPCT.getFloat() * 100;
-			
+
 			delta = static_cast<int>(g_DeltaToBestLap.getFloat() * 1000 + 0.5);
 
 			if (delta < 0) {
@@ -365,18 +367,18 @@ void run()
 			}
 
 			delta = abs(delta);
-						
+
 			// Cast time to MM:SS
 			lastTime = lastTime + 40000 * (((int)lastTime / 10000) / 6);
 			if (lastTime <= 0) lastTime = 0;
 
 			pitFuel = g_fuelPitService.getFloat();
-			fuelLevel = g_fuelLevel.getFloat() * 10;
+			fuelLevel = g_fuelLevel.getFloat() * 100;
 
 			printf("PitFuel: %f, FuelLevel: %f - Screen: %d \n", pitFuel, fuelLevel, showScreen);
 
 			//printf("SpeedInt: %d, Gear: %d \n", speed, gear);
-			
+
 			// Receive carIdx in "tstr" for getting car name
 			if (1 == irsdkClient::instance().getSessionStrVal("DriverInfo:DriverCarIdx:", tstr, MAX_STR))
 			{
@@ -425,7 +427,7 @@ void run()
 						convertGearToDigit(gear)
 					};
 
-					serial.writeSerial(trama, 12);					
+					serial.writeSerial(trama, 12);
 				}
 				else if (showScreen == 3) {
 
@@ -434,15 +436,15 @@ void run()
 						0xCA,
 						0xC7,
 						convertIntToDigit(int(fuelLevel) % 10),
-						convertIntToDigitPoint(int(fuelLevel / 10) % 10),
-						convertIntToDigit(int(fuelLevel / 100) % 10),
+						convertIntToDigit(int(fuelLevel / 10) % 10),
+						convertIntToDigitPoint(int(fuelLevel / 100) % 10),
 						convertIntToDigit(int(fuelLevel / 1000) % 10),
-						0xFF,
+						convertIntToDigit2(int(fuelLevel / 10000) % 10),
 						0xFF,
 						0xFF,
 
-						convertRPMToLEDS1(rpmPercent),
-						convertRPMToLEDS2(rpmPercent),
+						convertRPMToLEDS3(rpmPercent, drs),
+						convertRPMToLEDS4(rpmPercent),
 
 						convertGearToDigit(gear)
 					};
@@ -473,7 +475,8 @@ void run()
 					serial.writeSerial(trama, 12);
 				}
 
-			} else {
+			}
+			else {
 
 				if (showScreen == 2)
 				{
@@ -481,13 +484,13 @@ void run()
 					unsigned char trama[] = {
 
 						0xCA,
-						convertIntToDigit(int(fuelLevel) % 10),
-						convertIntToDigit(int(fuelLevel / 10) % 10),
-						convertIntToDigit(int(fuelLevel / 100) % 10),
-						0xFF,
-						0xFF,
-						0xFF,
-						0xFF,
+						convertIntToDigit(int(lastTime) % 10),
+						convertIntToDigit(int(lastTime / 10) % 10),
+						convertIntToDigit(int(lastTime / 100) % 10),
+						convertIntToDigitPoint(int(lastTime / 1000) % 10),
+						convertIntToDigit(int(lastTime / 10000) % 10) ,
+						convertIntToDigitPoint(int(lastTime / 100000) % 10) ,
+						convertIntToDigit2(int(lastTime / 1000000) % 10) ,
 						0xFF,
 
 						convertRPMToLEDS1(rpmPercent),
@@ -504,13 +507,13 @@ void run()
 					unsigned char trama[] = {
 
 						0xCA,
-						convertIntToDigit(int(lastTime) % 10),
-						convertIntToDigit(int(lastTime / 10) % 10),
-						convertIntToDigit(int(lastTime / 100) % 10),
-						convertIntToDigitPoint(int(lastTime / 1000) % 10),
-						convertIntToDigit(int(lastTime / 10000) % 10) ,
-						convertIntToDigitPoint(int(lastTime / 100000) % 10) ,
-						convertIntToDigit2(int(lastTime / 1000000) % 10) ,
+						0xC7,
+						convertIntToDigit(int(fuelLevel) % 10),
+						convertIntToDigit(int(fuelLevel / 10) % 10),
+						convertIntToDigitPoint(int(fuelLevel / 100) % 10),
+						convertIntToDigit(int(fuelLevel / 1000) % 10),
+						convertIntToDigit2(int(fuelLevel / 10000) % 10),
+						0xFF,
 						0xFF,
 
 						convertRPMToLEDS1(rpmPercent),
@@ -545,26 +548,6 @@ void run()
 				}
 			}
 		}
-				
-	} else {
-		unsigned char trama[] = {
-
-			0xCA,
-
-			0xFF,
-			0xFF,
-			0xFF,
-			0xFF,
-			0xFF,
-			0xFF,
-			0xFF,
-			0xFF,
-
-			0xFF,
-			0xFF,
-
-			0xFF
-		};
 	}
 
 	// your normal process loop would go here
