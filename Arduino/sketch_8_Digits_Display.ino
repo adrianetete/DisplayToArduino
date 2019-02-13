@@ -7,10 +7,12 @@
   5 -> VCC
 */
 
+// Arduino outputs for the 8 digits (7 segments each) display
 int dataPin = 2; // Amarillo
 int latchPin = 3; // Verde
 int clockPin = 4;// Rojo
 
+// Arduino outputs for the LEDs and the 7 segments display
 int dataPinLED = 8; // Azul
 int latchPinLED = 9; // Verde
 int clockPinLED = 10; //Amarillo
@@ -20,11 +22,11 @@ byte trama[12];
 // My shitfOut 8x3 bits
 void shiftOutLEDS(int myDataPin, int myClockPin, byte myDataOut1, byte myDataOut2, byte myDataOut3) {
 
-  //Setup inicial
+  //Start setup
   int i = 0;
   int pinState;
 
-  //Enable data input
+  //Enable data input for the latchPinLED
   digitalWrite(latchPinLED, 0);
 
   //Shift first byte for gear
