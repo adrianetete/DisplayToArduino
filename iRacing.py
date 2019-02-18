@@ -1,12 +1,104 @@
 #!python3
 
-import irsdk, time, serial, math, sys, keyboard
+# Data sent to arduino: 
+# 
+#   First byte is always 0xCA, this is the segment preamble
+#   Next 8 bytes goes to 7 Segment 8-Digit Led Display
+#   1 byte to first shifter (which controls first 8 LEDs)
+#   1 byte to second shifter (which controls second 8 LEDs)
+#   1 byte to gear display (7 segment display)
+# 
+# Data = [
+#   0xCA,
+#
+#   8ºPosition-Display,
+#   7ºPosition-Display,
+#   6ºPosition-Display,
+#   5ºPosition-Display,
+#   4ºPosition-Display,
+#   3ºPosition-Display,
+#   2ºPosition-Display,
+#   1ºPosition-Display,
+# 
+#   First-8-LEDs,
+#   Next-8-LEDs,
+#   Gear-Display
+# ]
+#
+# Los caracteres que muestra el display son los siguientes:
+#   0b11000000;  0xC0;  // caracter[ 0 ]
+#   0b11111001;  0xF9;  // caracter[ 1 ]
+#   0b10100100;  0xA4;  // caracter[ 2 ]
+#   0b10110000;  0xB0;  // caracter[ 3 ]
+#   0b10011001;  0x99;  // caracter[ 4 ]
+#   0b10010010;  0x92;  // caracter[ 5 ]
+#   0b10000010;  0x82;  // caracter[ 6 ]
+#   0b11111000;  0xF8;  // caracter[ 7 ]
+#   0b10000000;  0x80;  // caracter[ 8 ]
+#   0b10010000;  0x90;  // caracter[ 9 ]
+#   0b10111111;  0xBF;  // caracter[ - ]
+#   0b10001000;  0x88;  // caracter[ R ]
 
-puertoSerial = 'COM6'
+
+import irsdk, time, serial, math, sys, keyboard, win32api
+import serial.tools.list_ports
+from threading import Thread
+
+puertoSerial = 'COM5'    
+displayInfo = 0
 
 class State:
     ir_connected = False
     last_car_setup_tick = -1
+
+def buscarArduino():
+
+    i = 0
+    str1 = ""
+    str2 = ""
+    
+    # Find Live Ports
+    ports = list(serial.tools.list_ports.comports())
+    for p in ports:
+        print (p) # This causes each port's information to be printed out.
+                # To search this p data, use p[1].
+                
+    while i < 9:   # Loop checks "COM0" to "COM8" for Adruino Port Info. 
+
+        if "CH340" in p[1]:  # Looks for "CH340" in P[1].
+            str2 = str(i) # Converts an Integer to a String, allowing:
+            str1 = "COM" + str2 # add the strings together.
+
+        if "CH340" in p[1] and str1 in p[1]: # Looks for "CH340" and "COM#"
+         print ("Encontrado Arduino UNO en " + str1)
+         i = 9 # Causes loop to end.
+
+        if i == 8:
+         print ("No se encuentra Arduino")
+
+        i = i + 1
+    return str1
+    
+# Con esta funcion 'hacemos algo' solamente al soltar la tecla, para evitar que se haga en bucle mientras se mantiene pulsada
+def capturarTeclado(key):
+
+    global displayInfo
+    pulsado = False
+    
+    while True:
+        if win32api.GetAsyncKeyState(key):           
+            pulsado = True
+            
+        elif pulsado:
+            pulsado = False            
+            # Cambiamos el estado de 'displayInfo'
+            if displayInfo < 2:
+                displayInfo = displayInfo + 1
+            else:
+                displayInfo = 0
+            
+        # Uso esto para evitar que el proceso consuma toda la CPU
+        time.sleep(0.05)
     
 def convertIntToDigit(num):
     return {
@@ -52,15 +144,16 @@ def convertIntToDigitPoint(num):
     
 def convertGearToDigit(num):
     return {
-        0: 0x88,
-        1: 0xBF,
-        2: 0xF9,
-        3: 0xA4,
-        4: 0xB0,
-        5: 0x99,
-        6: 0x92,
-        7: 0x82,
-        8: 0xF8
+        -1: 0x88,
+        0: 0xBF,
+        1: 0xF9,
+        2: 0xA4,
+        3: 0xB0,
+        4: 0x99,
+        5: 0x92,
+        6: 0x82,
+        7: 0xF8,
+        7: 0x90
     }.get(num, 0xFF) #Default 0xFF
     
 def convertRPMToLEDS1(rpmPerc):
@@ -122,13 +215,15 @@ def loop():
     rpmPercent = (rpm * 100) / rpmMax
     
     currentLap = ir['LapCurrentLapTime']
-    currentLap = math.floor(currentLap * 1000)
-    if ( (currentLap / 10000) % 10) > 5 :
-            currentLap = currentLap + 40000;
+    currentLap = currentLap + 40 * math.floor(currentLap/60)
+    currentLap = currentLap * 1000
 
-    delta = ir['LapDeltaToOptimalLap'] * 100
+    delta = ir['LapDeltaToSessionOptimalLap'] * 100
+    delta2 = ir['LapDeltaToSessionBestLap'] * 100
+    
     gear = ir['Gear']
     deltaSign = 0xFF
+    deltaSign2 = 0xFF
     
     if delta < 0:
         deltaSign = 0xBF
@@ -137,7 +232,31 @@ def loop():
     
     delta = math.fabs(delta)
     
-    if keyboard.is_pressed('4'):  # if key '4' is pressed 
+    if delta2 < 0:
+        deltaSign2 = 0xBF
+    else:
+        deltaSign2 = 0xFF
+    
+    delta2 = math.fabs(delta2)    
+       
+
+    data = [
+        0xCA, 
+        convertIntToDigit(math.floor(currentLap) % 10), 
+        convertIntToDigit(math.floor(currentLap / 10) % 10),
+        convertIntToDigit(math.floor(currentLap / 100) % 10),
+        convertIntToDigitPoint(math.floor(currentLap / 1000) % 10),
+        convertIntToDigit(math.floor(currentLap / 10000) % 10),
+        convertIntToDigitPoint(math.floor(currentLap / 100000) % 10),
+        convertIntToDigit2(math.floor(currentLap / 1000000) % 10),
+        0xFF,
+        
+        convertRPMToLEDS1(rpmPercent), 
+        convertRPMToLEDS2(rpmPercent),         
+        convertGearToDigit(gear)
+    ]
+        
+    if displayInfo == 1:
         data = [
             0xCA, 
             convertIntToDigit(math.floor(delta) % 10), 
@@ -153,17 +272,19 @@ def loop():
             convertRPMToLEDS2(rpmPercent),         
             convertGearToDigit(gear)
         ]
-    else:
+        
+    elif displayInfo == 2:
         data = [
             0xCA, 
             convertIntToDigit(math.floor(delta) % 10), 
             convertIntToDigit(math.floor(delta / 10) % 10),
             convertIntToDigitPoint(math.floor(delta / 100) % 10),
             deltaSign,
-            0xFF,        
-            convertIntToDigit(math.floor(speed) % 10),
-            convertIntToDigit(math.floor(speed / 10) % 10),
-            convertIntToDigit2(math.floor(speed / 100) % 10),
+            
+            convertIntToDigit(math.floor(delta2) % 10), 
+            convertIntToDigit(math.floor(delta2 / 10) % 10),
+            convertIntToDigitPoint(math.floor(delta2 / 100) % 10),
+            deltaSign2,
             
             convertRPMToLEDS1(rpmPercent), 
             convertRPMToLEDS2(rpmPercent),         
@@ -173,18 +294,24 @@ def loop():
     if ser.isOpen():
         ser.write(data)
     
-    print(currentLap)
+    # print(currentLap)
+    # print(' LapDeltaToOptimalLap', delta)
+    # print('Delta Best Lap: ', delta2)
+    # print('Delta Session Optimal Lap: ', delta3)
 
 if __name__ == '__main__':
 
     print()
-    print('########### My Python iRacing 1.0 ###########')
+    print('########### Mi Python iRacing 1.0 ###########')
     print()
     
     ir = irsdk.IRSDK()
     state = State()
+    Thread(target=capturarTeclado, args=(0x34,)).start() # Detectar el botón 4
     
     try:
+        puertoSerial = buscarArduino()
+        
         ser = serial.Serial(puertoSerial, 9600)
         print('Conectado al puerto: ', puertoSerial)
         
@@ -197,7 +324,7 @@ if __name__ == '__main__':
             check_iracing()
             if state.ir_connected:
                 loop()
-            #time.sleep(1/60)
-            time.sleep(1/2) #Para testeo
+            time.sleep(1/60)
+            # time.sleep(1/2) #Para testeo
     except KeyboardInterrupt:
-        print ('Shutdown requested...exiting')
+        print ('Terminando proceso....')
