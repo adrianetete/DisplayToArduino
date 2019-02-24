@@ -46,6 +46,7 @@ from threading import Thread
 
 puertoSerial = 'COM5'    
 displayInfo = 0
+escuchaTeclado = True
 
 class State:
     ir_connected = False
@@ -54,43 +55,38 @@ class State:
 def buscarArduino():
 
     i = 0
-    str1 = ""
-    str2 = ""
+    maxCom = 0
+    puertoCom = ""
     
-    # Find Live Ports
+    print("Buscando Arduino...")
+    
+    # Recibe una lista de puertos COM activos
     ports = list(serial.tools.list_ports.comports())
     for p in ports:
-        print (p) # This causes each port's information to be printed out.
-                # To search this p data, use p[1].
-                
-    while i < 9:   # Loop checks "COM0" to "COM8" for Adruino Port Info. 
+        # Aumenta el contador de puertos
+        maxCom = maxCom + 1
 
-        if "CH340" in p[1]:  # Looks for "CH340" in P[1].
-            str2 = str(i) # Converts an Integer to a String, allowing:
-            str1 = "COM" + str2 # add the strings together.
-
-        if "CH340" in p[1] and str1 in p[1]: # Looks for "CH340" and "COM#"
-         print ("Encontrado Arduino UNO en " + str1)
-         i = 9 # Causes loop to end.
-
-        if i == 8:
-         print ("No se encuentra Arduino")
-
+    # en p[0] esta el nombre del puerto
+    # en p[1] esta el nombre del dispositivo que hay conectado
+    while i < maxCom:
+        if "CH340" in p[1]:  # Busca en el nombre del dispositivo "CH340"         
+            puertoCom = str(p[0])
+            i = maxCom # Salir de bucle    
         i = i + 1
-    return str1
+    return puertoCom
     
 # Con esta funcion 'hacemos algo' solamente al soltar la tecla, para evitar que se haga en bucle mientras se mantiene pulsada
 def capturarTeclado(key):
 
     global displayInfo
     pulsado = False
-    
-    while True:
+
+    while True and escuchaTeclado:
         if win32api.GetAsyncKeyState(key):           
             pulsado = True
             
         elif pulsado:
-            pulsado = False            
+            pulsado = False
             # Cambiamos el estado de 'displayInfo'
             if displayInfo < 2:
                 displayInfo = displayInfo + 1
@@ -99,6 +95,7 @@ def capturarTeclado(key):
             
         # Uso esto para evitar que el proceso consuma toda la CPU
         time.sleep(0.05)
+
     
 def convertIntToDigit(num):
     return {
@@ -218,27 +215,26 @@ def loop():
     currentLap = currentLap + 40 * math.floor(currentLap/60)
     currentLap = currentLap * 1000
 
-    delta = ir['LapDeltaToSessionOptimalLap'] * 100
-    delta2 = ir['LapDeltaToSessionBestLap'] * 100
+    deltaSessionOptimal = ir['LapDeltaToSessionOptimalLap'] * 100
+    deltaSessionBest = ir['LapDeltaToSessionBestLap'] * 100
     
     gear = ir['Gear']
     deltaSign = 0xFF
     deltaSign2 = 0xFF
     
-    if delta < 0:
+    if deltaSessionOptimal < 0:
         deltaSign = 0xBF
     else:
         deltaSign = 0xFF
     
-    delta = math.fabs(delta)
+    deltaSessionOptimal = math.fabs(deltaSessionOptimal)
     
-    if delta2 < 0:
+    if deltaSessionBest < 0:
         deltaSign2 = 0xBF
     else:
         deltaSign2 = 0xFF
     
-    delta2 = math.fabs(delta2)    
-       
+    deltaSessionBest = math.fabs(deltaSessionBest)
 
     data = [
         0xCA, 
@@ -259,9 +255,9 @@ def loop():
     if displayInfo == 1:
         data = [
             0xCA, 
-            convertIntToDigit(math.floor(delta) % 10), 
-            convertIntToDigit(math.floor(delta / 10) % 10),
-            convertIntToDigitPoint(math.floor(delta / 100) % 10),
+            convertIntToDigit(math.floor(deltaSessionOptimal) % 10), 
+            convertIntToDigit(math.floor(deltaSessionOptimal / 10) % 10),
+            convertIntToDigitPoint(math.floor(deltaSessionOptimal / 100) % 10),
             deltaSign,
             0xFF,        
             convertIntToDigit(math.floor(speed) % 10),
@@ -276,14 +272,14 @@ def loop():
     elif displayInfo == 2:
         data = [
             0xCA, 
-            convertIntToDigit(math.floor(delta) % 10), 
-            convertIntToDigit(math.floor(delta / 10) % 10),
-            convertIntToDigitPoint(math.floor(delta / 100) % 10),
+            convertIntToDigit(math.floor(deltaSessionOptimal) % 10), 
+            convertIntToDigit(math.floor(deltaSessionOptimal / 10) % 10),
+            convertIntToDigitPoint(math.floor(deltaSessionOptimal / 100) % 10),
             deltaSign,
             
-            convertIntToDigit(math.floor(delta2) % 10), 
-            convertIntToDigit(math.floor(delta2 / 10) % 10),
-            convertIntToDigitPoint(math.floor(delta2 / 100) % 10),
+            convertIntToDigit(math.floor(deltaSessionBest) % 10), 
+            convertIntToDigit(math.floor(deltaSessionBest / 10) % 10),
+            convertIntToDigitPoint(math.floor(deltaSessionBest / 100) % 10),
             deltaSign2,
             
             convertRPMToLEDS1(rpmPercent), 
@@ -294,11 +290,6 @@ def loop():
     if ser.isOpen():
         ser.write(data)
     
-    # print(currentLap)
-    # print(' LapDeltaToOptimalLap', delta)
-    # print('Delta Best Lap: ', delta2)
-    # print('Delta Session Optimal Lap: ', delta3)
-
 if __name__ == '__main__':
 
     print()
@@ -307,19 +298,19 @@ if __name__ == '__main__':
     
     ir = irsdk.IRSDK()
     state = State()
-    Thread(target=capturarTeclado, args=(0x34,)).start() # Detectar el botón 4
     
     try:
         puertoSerial = buscarArduino()
         
         ser = serial.Serial(puertoSerial, 9600)
-        print('Conectado al puerto: ', puertoSerial)
+        print("Conectado a Arduino en " + puertoSerial + ".")
         
     except  serial.SerialException:
-        print('Error al conectar al puerto: ', puertoSerial)
-        sys.exit(1)
-        
+        print("Error al conectar al al Arduino.")
+                
     try:
+        Thread(target=capturarTeclado, args=(0x34,)).start() # Detectar el botón 4
+        
         while True:
             check_iracing()
             if state.ir_connected:
@@ -327,4 +318,7 @@ if __name__ == '__main__':
             time.sleep(1/60)
             # time.sleep(1/2) #Para testeo
     except KeyboardInterrupt:
-        print ('Terminando proceso....')
+    
+        print ('Saliendo...')
+        escuchaTeclado = False
+        sys.exit(1)
